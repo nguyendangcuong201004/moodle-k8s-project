@@ -1,0 +1,10 @@
+src/config.php
+
+
+moodle_data/
+pg_data/
+
+
+.DS_Store
+.vscode/
+*.log
