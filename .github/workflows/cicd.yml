@@ -1,38 +1,176 @@
-name: Build & Push Moodle Image
+name: Build, Push & Deploy Moodle
 
 on:
   push:
-    branches: [ "main" ]
-    tags: [ "v*" ] 
+    branches: ["main"]
+    tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      action:
+        description: "Action to perform"
+        required: true
+        type: choice
+        options:
+          - deploy-production
+          - staging-teardown
+      image_tag:
+        description: "Image tag to deploy (e.g., v1.1.0 or sha-abc1234). Required for deploy-production."
+        required: false
+        type: string
 
 jobs:
+  # ──────────────────────────────────────────────
+  # JOB 1: Build and push Docker image
+  # ──────────────────────────────────────────────
   build-and-push:
+    if: github.event_name == 'push'
     runs-on: ubuntu-latest
-    
+    outputs:
+      image_tag: ${{ steps.short_sha.outputs.sha }}
     steps:
-    - name: Checkout Code
-      uses: actions/checkout@v3
+      - name: Checkout Code
+        uses: actions/checkout@v4
 
-    - name: Docker Meta 
-      id: meta
-      uses: docker/metadata-action@v4
-      with:
-        images: ndcuongdevops/moodle-lms
-        tags: |
-          type=raw,value=latest,enable={{is_default_branch}}
-          type=ref,event=tag
-          type=sha
+      - name: Get short SHA
+        id: short_sha
+        run: echo "sha=sha-$(echo $GITHUB_SHA | cut -c1-7)" >> $GITHUB_OUTPUT
 
-    - name: Login to Docker Hub
-      uses: docker/login-action@v2
-      with:
-        username: ${{ secrets.DOCKERHUB_USERNAME }}
-        password: ${{ secrets.DOCKERHUB_TOKEN }}
+      - name: Docker Meta
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ndcuongdevops/moodle-lms
+          tags: |
+            type=raw,value=latest,enable={{is_default_branch}}
+            type=ref,event=tag
+            type=sha
 
-    - name: Build and Push
-      uses: docker/build-push-action@v4
-      with:
-        context: .
-        push: true
-        tags: ${{ steps.meta.outputs.tags }} 
-        labels: ${{ steps.meta.outputs.labels }}
+      - name: Login to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Build and Push
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+
+  # ──────────────────────────────────────────────
+  # JOB 2: Deploy to staging (auto on push to main)
+  # ──────────────────────────────────────────────
+  deploy-staging:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: build-and-push
+    runs-on: ubuntu-latest
+    environment: staging
+    steps:
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ secrets.AWS_REGION }}
+
+      - name: Update kubeconfig
+        run: |
+          aws eks update-kubeconfig --region ${{ secrets.AWS_REGION }} --name moodle-cluster
+
+      - name: Deploy to staging
+        run: |
+          IMAGE_TAG="${{ needs.build-and-push.outputs.image_tag }}"
+          echo "Deploying image tag: $IMAGE_TAG to staging"
+
+          # Scale up staging (on-demand)
+          kubectl -n moodle-staging scale deployment/moodle --replicas=1
+
+          # Update image
+          kubectl -n moodle-staging set image deployment/moodle \
+            moodle=ndcuongdevops/moodle-lms:${IMAGE_TAG}
+
+          # Wait for rollout
+          kubectl -n moodle-staging rollout status deployment/moodle --timeout=300s
+
+      - name: Verify staging deployment
+        run: |
+          echo "=== Staging Pods ==="
+          kubectl -n moodle-staging get pods
+          echo "=== Staging Ingress ==="
+          kubectl -n moodle-staging get ingress
+          echo ""
+          echo "Staging URL: https://staging-lms.ndcuong.online"
+
+  # ──────────────────────────────────────────────
+  # JOB 3: Deploy to production (manual trigger)
+  # ──────────────────────────────────────────────
+  deploy-production:
+    if: github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'deploy-production'
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - name: Validate inputs
+        run: |
+          if [ -z "${{ github.event.inputs.image_tag }}" ]; then
+            echo "ERROR: image_tag is required for deploy-production"
+            exit 1
+          fi
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ secrets.AWS_REGION }}
+
+      - name: Update kubeconfig
+        run: |
+          aws eks update-kubeconfig --region ${{ secrets.AWS_REGION }} --name moodle-cluster
+
+      - name: Deploy to production
+        run: |
+          IMAGE_TAG="${{ github.event.inputs.image_tag }}"
+          echo "Deploying image tag: $IMAGE_TAG to production"
+
+          # Update image (rolling update - zero downtime)
+          kubectl -n moodle-production set image deployment/moodle \
+            moodle=ndcuongdevops/moodle-lms:${IMAGE_TAG}
+
+          # Wait for rollout
+          kubectl -n moodle-production rollout status deployment/moodle --timeout=300s
+
+      - name: Verify production deployment
+        run: |
+          echo "=== Production Pods ==="
+          kubectl -n moodle-production get pods
+          echo "=== Production Ingress ==="
+          kubectl -n moodle-production get ingress
+          echo ""
+          echo "Production URL: https://lms.ndcuong.online"
+
+  # ──────────────────────────────────────────────
+  # JOB 4: Teardown staging (manual trigger)
+  # ──────────────────────────────────────────────
+  staging-teardown:
+    if: github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'staging-teardown'
+    runs-on: ubuntu-latest
+    environment: staging
+    steps:
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ secrets.AWS_REGION }}
+
+      - name: Update kubeconfig
+        run: |
+          aws eks update-kubeconfig --region ${{ secrets.AWS_REGION }} --name moodle-cluster
+
+      - name: Scale down staging
+        run: |
+          echo "Scaling down staging to save resources..."
+          kubectl -n moodle-staging scale deployment/moodle --replicas=0
+          echo "Staging scaled to 0 replicas."
