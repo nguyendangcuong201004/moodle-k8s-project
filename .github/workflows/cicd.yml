@@ -68,42 +68,34 @@ jobs:
     runs-on: ubuntu-latest
     environment: staging
     steps:
-      - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v4
+      - name: Install doctl
+        uses: digitalocean/action-doctl@v2
         with:
-          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: ${{ secrets.AWS_REGION }}
-          role-to-assume: arn:aws:iam::717251295508:role/DevOpsRole
-          role-duration-seconds: 900
+          token: ${{ secrets.DO_TOKEN }}
 
-      - name: Update kubeconfig
-        run: |
-          aws eks update-kubeconfig --region ${{ secrets.AWS_REGION }} --name moodle-cluster
+      - name: Get kubeconfig
+        run: doctl kubernetes cluster kubeconfig save moodle-cluster
 
       - name: Deploy to staging
         run: |
           IMAGE_TAG="${{ needs.build-and-push.outputs.image_tag }}"
-          echo "Deploying image tag: $IMAGE_TAG to staging"
+          echo "Deploying image tag: $IMAGE_TAG"
 
-          # Scale up staging (on-demand)
-          kubectl -n moodle-staging scale deployment/moodle --replicas=1
-
-          # Update image
-          kubectl -n moodle-staging set image deployment/moodle \
+          # Update image (rolling update)
+          kubectl set image deployment/moodle \
             moodle=ndcuongdevops/moodle-lms:${IMAGE_TAG}
 
           # Wait for rollout
-          kubectl -n moodle-staging rollout status deployment/moodle --timeout=300s
+          kubectl rollout status deployment/moodle --timeout=300s
 
-      - name: Verify staging deployment
+      - name: Verify deployment
         run: |
-          echo "=== Staging Pods ==="
-          kubectl -n moodle-staging get pods
-          echo "=== Staging Ingress ==="
-          kubectl -n moodle-staging get ingress
+          echo "=== Pods ==="
+          kubectl get pods
+          echo "=== Service ==="
+          kubectl get svc
           echo ""
-          echo "Staging URL: https://staging-lms.ndcuong.online"
+          echo "Site URL: ${{ vars.MOODLE_WWWROOT }}"
 
   # ──────────────────────────────────────────────
   # JOB 3: Deploy to production (manual trigger)
@@ -120,39 +112,34 @@ jobs:
             exit 1
           fi
 
-      - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v4
+      - name: Install doctl
+        uses: digitalocean/action-doctl@v2
         with:
-          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: ${{ secrets.AWS_REGION }}
-          role-to-assume: arn:aws:iam::717251295508:role/DevOpsRole
-          role-duration-seconds: 900
+          token: ${{ secrets.DO_TOKEN }}
 
-      - name: Update kubeconfig
-        run: |
-          aws eks update-kubeconfig --region ${{ secrets.AWS_REGION }} --name moodle-cluster
+      - name: Get kubeconfig
+        run: doctl kubernetes cluster kubeconfig save moodle-cluster
 
       - name: Deploy to production
         run: |
           IMAGE_TAG="${{ github.event.inputs.image_tag }}"
-          echo "Deploying image tag: $IMAGE_TAG to production"
+          echo "Deploying image tag: $IMAGE_TAG"
 
-          # Update image (rolling update - zero downtime)
-          kubectl -n moodle-production set image deployment/moodle \
+          # Rolling update - zero downtime
+          kubectl set image deployment/moodle \
             moodle=ndcuongdevops/moodle-lms:${IMAGE_TAG}
 
           # Wait for rollout
-          kubectl -n moodle-production rollout status deployment/moodle --timeout=300s
+          kubectl rollout status deployment/moodle --timeout=300s
 
-      - name: Verify production deployment
+      - name: Verify deployment
         run: |
-          echo "=== Production Pods ==="
-          kubectl -n moodle-production get pods
-          echo "=== Production Ingress ==="
-          kubectl -n moodle-production get ingress
+          echo "=== Pods ==="
+          kubectl get pods
+          echo "=== Service ==="
+          kubectl get svc
           echo ""
-          echo "Production URL: https://lms.ndcuong.online"
+          echo "Site URL: ${{ vars.MOODLE_WWWROOT }}"
 
   # ──────────────────────────────────────────────
   # JOB 4: Teardown staging (manual trigger)
@@ -162,21 +149,16 @@ jobs:
     runs-on: ubuntu-latest
     environment: staging
     steps:
-      - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v4
+      - name: Install doctl
+        uses: digitalocean/action-doctl@v2
         with:
-          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: ${{ secrets.AWS_REGION }}
-          role-to-assume: arn:aws:iam::717251295508:role/DevOpsRole
-          role-duration-seconds: 900
+          token: ${{ secrets.DO_TOKEN }}
 
-      - name: Update kubeconfig
-        run: |
-          aws eks update-kubeconfig --region ${{ secrets.AWS_REGION }} --name moodle-cluster
+      - name: Get kubeconfig
+        run: doctl kubernetes cluster kubeconfig save moodle-cluster
 
-      - name: Scale down staging
+      - name: Scale down
         run: |
-          echo "Scaling down staging to save resources..."
-          kubectl -n moodle-staging scale deployment/moodle --replicas=0
-          echo "Staging scaled to 0 replicas."
+          echo "Scaling down to save resources..."
+          kubectl scale deployment/moodle --replicas=0
+          echo "Scaled to 0 replicas."

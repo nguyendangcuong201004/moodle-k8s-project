@@ -19,11 +19,16 @@ $CFG->dbname    = getenv('MOODLE_DB_NAME') ?: 'moodle';
 $CFG->dbuser    = getenv('MOODLE_DB_USER') ?: 'moodleuser';
 $CFG->dbpass    = getenv('MOODLE_DB_PASSWORD');
 $CFG->prefix    = 'mdl_';
+$_sslmode = getenv('MOODLE_DB_SSLMODE');
 $CFG->dboptions = array(
-  'dbpersist' => 0,
-  'dbport'    => getenv('MOODLE_DB_PORT') ?: '',
-  'dbsocket'  => '',
+  'dbpersist'       => 0,
+  'dbport'          => getenv('MOODLE_DB_PORT') ?: '',
+  'dbsocket'        => '',
+  'connect_timeout' => 30,
 );
+if ($_sslmode) {
+  $CFG->dboptions['sslmode'] = $_sslmode;
+}
 
 $CFG->wwwroot   = getenv('MOODLE_WWWROOT');
 $CFG->sslproxy  = filter_var(getenv('MOODLE_SSL_PROXY') ?: 'true', FILTER_VALIDATE_BOOLEAN);

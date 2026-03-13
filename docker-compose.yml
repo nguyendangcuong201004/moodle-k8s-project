@@ -27,5 +27,7 @@ services:
       - MOODLE_DB_NAME=moodle
       - MOODLE_DB_USER=moodleuser
       - MOODLE_DB_PASSWORD=Anhmeow123
+      - MOODLE_WWWROOT=http://localhost:8081
+      - MOODLE_SSL_PROXY=false
     depends_on:
       - db
