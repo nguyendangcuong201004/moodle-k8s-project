@@ -25,4 +25,24 @@
     {{{ output.standard_head_html }}}
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <link rel="stylesheet" href="{{{config.wwwroot}}}/theme/boost/style/hcmut-custom.css">
+    <script>
+    // Link prefetch on hover — preload pages before user clicks
+    document.addEventListener('DOMContentLoaded', function() {
+        var prefetched = new Set();
+        document.addEventListener('mouseover', function(e) {
+            var a = e.target.closest('a[href]');
+            if (!a) return;
+            var href = a.href;
+            if (!href || href.startsWith('#') || href.startsWith('javascript') ||
+                href.startsWith('mailto') || prefetched.has(href)) return;
+            // Only prefetch same-origin pages
+            if (a.origin !== location.origin) return;
+            prefetched.add(href);
+            var link = document.createElement('link');
+            link.rel = 'prefetch';
+            link.href = href;
+            document.head.appendChild(link);
+        }, { passive: true });
+    });
+    </script>
 </head>
