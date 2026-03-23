@@ -3,7 +3,7 @@ src/config.php
 
 moodle_data/
 pg_data/
-
+note.md
 
 .DS_Store
 .vscode/
