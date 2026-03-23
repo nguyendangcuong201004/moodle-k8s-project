@@ -1,0 +1,212 @@
+/* ============================================================
+   HCMUT LMS - UX Enhancement (smooth, animations, polish)
+   ============================================================ */
+
+:root {
+    --hcmut-transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+    --hcmut-shadow-sm: 0 1px 6px rgba(0, 0, 0, 0.06);
+    --hcmut-shadow-md: 0 4px 14px rgba(0, 0, 0, 0.1);
+    --hcmut-shadow-lg: 0 8px 28px rgba(0, 0, 0, 0.12);
+}
+
+html { scroll-behavior: smooth; }
+
+/* ---------- Page Load Animation ---------- */
+@keyframes hcmutFadeIn {
+    from { opacity: 0; transform: translateY(12px); }
+    to   { opacity: 1; transform: translateY(0); }
+}
+
+#page-content,
+.main-inner {
+    animation: hcmutFadeIn 0.4s ease-out;
+}
+
+/* ---------- Navbar: Hover & Active Polish ---------- */
+.navbar .nav-link,
+.primary-navigation .nav-link {
+    color: rgba(255, 255, 255, 0.88) !important;
+    transition: var(--hcmut-transition) !important;
+    border-radius: 6px;
+    position: relative;
+}
+
+.navbar .nav-link:hover,
+.primary-navigation .nav-link:hover {
+    color: #ffffff !important;
+    background-color: rgba(255, 255, 255, 0.15) !important;
+}
+
+.navbar .nav-link.active,
+.primary-navigation .nav-link.active,
+.primary-navigation .nav-link[aria-current="true"] {
+    color: #ffffff !important;
+    background-color: rgba(255, 255, 255, 0.22) !important;
+    font-weight: 600 !important;
+}
+
+/* Navbar brand hover */
+.navbar .navbar-brand img {
+    transition: var(--hcmut-transition);
+}
+.navbar .navbar-brand:hover img {
+    transform: scale(1.04);
+}
+
+/* Navbar icon buttons (notifications, messages) */
+#usernavigation .nav-link {
+    transition: var(--hcmut-transition) !important;
+}
+#usernavigation .nav-link:hover {
+    background-color: rgba(255, 255, 255, 0.15) !important;
+    transform: scale(1.06);
+}
+
+/* ---------- Cards: Smooth Hover ---------- */
+.card {
+    transition: var(--hcmut-transition);
+}
+.card:hover {
+    box-shadow: var(--hcmut-shadow-md);
+    transform: translateY(-3px);
+}
+
+/* ---------- Course Cards ---------- */
+.coursebox,
+.course-card {
+    transition: var(--hcmut-transition);
+}
+.coursebox:hover,
+.course-card:hover {
+    transform: translateY(-4px);
+    box-shadow: var(--hcmut-shadow-lg);
+}
+
+.course-card .courseimage img,
+.coursebox .courseimage img {
+    transition: transform 0.4s ease;
+}
+.course-card:hover .courseimage img,
+.coursebox:hover .courseimage img {
+    transform: scale(1.05);
+}
+
+/* ---------- Buttons: Smooth ---------- */
+.btn {
+    transition: var(--hcmut-transition);
+}
+.btn-primary:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(15, 108, 191, 0.3);
+}
+.btn-primary:active {
+    transform: translateY(0) scale(0.98);
+}
+
+/* ---------- Blocks ---------- */
+.block {
+    transition: var(--hcmut-transition);
+}
+.block:hover {
+    box-shadow: var(--hcmut-shadow-sm);
+}
+
+/* ---------- Dropdown Menus ---------- */
+.dropdown-menu {
+    animation: hcmutFadeIn 0.2s ease-out;
+}
+.dropdown-item {
+    transition: var(--hcmut-transition);
+}
+.dropdown-item:hover {
+    transform: translateX(3px);
+}
+
+/* ---------- Activity Items ---------- */
+.activity-item {
+    transition: var(--hcmut-transition);
+}
+.activity-item:hover {
+    background-color: rgba(0, 0, 0, 0.02);
+    transform: translateX(3px);
+}
+
+/* ---------- Activity Icons ---------- */
+.activityiconcontainer {
+    transition: var(--hcmut-transition);
+}
+.activityiconcontainer:hover {
+    transform: scale(1.08);
+}
+
+/* ---------- Modal ---------- */
+.modal-content {
+    animation: hcmutFadeIn 0.25s ease-out;
+}
+
+/* ---------- Alerts ---------- */
+.alert {
+    animation: hcmutFadeIn 0.3s ease-out;
+}
+
+/* ---------- Forms: Focus ---------- */
+.form-control {
+    transition: var(--hcmut-transition);
+}
+.form-control:focus {
+    box-shadow: 0 0 0 3px rgba(15, 108, 191, 0.12) !important;
+}
+
+/* ---------- Tables ---------- */
+.generaltable tbody tr {
+    transition: background-color 0.2s ease;
+}
+.generaltable tbody tr:hover {
+    background-color: rgba(0, 0, 0, 0.02) !important;
+}
+
+/* ---------- Breadcrumb Links ---------- */
+.breadcrumb-item a {
+    transition: color 0.2s ease;
+}
+
+/* ---------- Drawer (sidebar) ---------- */
+.drawer .drawercontent {
+    animation: hcmutFadeIn 0.25s ease-out;
+}
+
+/* ---------- Footer Button ---------- */
+.footer-popover .btn-footer-popover {
+    transition: var(--hcmut-transition);
+}
+.footer-popover .btn-footer-popover:hover {
+    transform: scale(1.08);
+}
+
+/* ---------- Progress Bar ---------- */
+.progress-bar {
+    transition: width 0.6s ease;
+}
+
+/* ---------- Scrollbar ---------- */
+::-webkit-scrollbar {
+    width: 7px;
+}
+::-webkit-scrollbar-track {
+    background: #f5f5f5;
+}
+::-webkit-scrollbar-thumb {
+    background: #bbb;
+    border-radius: 10px;
+}
+::-webkit-scrollbar-thumb:hover {
+    background: #999;
+}
+
+/* ---------- Print: Disable All ---------- */
+@media print {
+    * {
+        animation: none !important;
+        transition: none !important;
+    }
+}
