@@ -1,25 +1,10 @@
-FROM php:8.2-apache
-
+FROM php:8.2-fpm-bullseye
 
 RUN apt-get update && apt-get install -y \
     libpng-dev libjpeg-dev libfreetype6-dev libzip-dev \
     libicu-dev libxml2-dev libonig-dev libxslt1-dev \
     libpq-dev libsodium-dev unzip git locales \
     && rm -rf /var/lib/apt/lists/*
-
-
-RUN echo "en_US.UTF-8 UTF-8" > /etc/locale.gen && locale-gen
-
-
-RUN docker-php-ext-configure gd --with-freetype --with-jpeg \
-    && docker-php-ext-install -j$(nproc) \
-    gd opcache intl zip soap exif pgsql pdo_pgsql sodium
-
-
-RUN echo "max_input_vars = 5000" >> /usr/local/etc/php/conf.d/moodle-vars.ini
-RUN echo "upload_max_filesize = 100M" >> /usr/local/etc/php/conf.d/uploads.ini
-RUN echo "post_max_size = 100M" >> /usr/local/etc/php/conf.d/uploads.ini
-RUN echo "memory_limit = 256M" >> /usr/local/etc/php/conf.d/memory.ini
 
 RUN echo "en_US.UTF-8 UTF-8" > /etc/locale.gen && \
     echo "vi_VN.UTF-8 UTF-8" >> /etc/locale.gen && \
@@ -29,21 +14,33 @@ ENV LANG=vi_VN.UTF-8
 ENV LANGUAGE=vi_VN:en
 ENV LC_ALL=vi_VN.UTF-8
 
+RUN docker-php-ext-configure gd --with-freetype --with-jpeg \
+    && docker-php-ext-install -j$(nproc) \
+    gd opcache intl zip soap exif pgsql pdo_pgsql sodium \
+    && pecl install redis \
+    && docker-php-ext-enable redis
 
-ENV APACHE_DOCUMENT_ROOT=/var/www/html/public
-RUN sed -ri -e 's!/var/www/html!${APACHE_DOCUMENT_ROOT}!g' /etc/apache2/sites-available/*.conf
-RUN sed -ri -e 's!/var/www/!${APACHE_DOCUMENT_ROOT}!g' /etc/apache2/apache2.conf /etc/apache2/conf-available/*.conf
-RUN a2enmod rewrite
+RUN echo "max_input_vars = 5000" >> /usr/local/etc/php/conf.d/moodle-vars.ini
+RUN echo "upload_max_filesize = 100M" >> /usr/local/etc/php/conf.d/uploads.ini
+RUN echo "post_max_size = 100M" >> /usr/local/etc/php/conf.d/uploads.ini
+RUN echo "memory_limit = 256M" >> /usr/local/etc/php/conf.d/memory.ini
 
+COPY docker/moodle-fpm-entrypoint.sh /usr/local/bin/moodle-fpm-entrypoint.sh
+RUN chmod +x /usr/local/bin/moodle-fpm-entrypoint.sh
 
 COPY ./src /var/www/html
 
+RUN chown -R www-data:www-data /var/www/html \
+    && chmod -R 755 /var/www/html
 
-RUN chown -R www-data:www-data /var/www/html
-RUN chmod -R 755 /var/www/html
+WORKDIR /var/www/html
 
-COPY docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
-RUN chmod +x /usr/local/bin/docker-entrypoint.sh
+ENV OPCACHE_MEMORY=256 \
+    FPM_PM_CONTROL=dynamic \
+    FPM_MAX_CHILDREN=40 \
+    FPM_START_SERVERS=5 \
+    FPM_MIN_SPARE=5 \
+    FPM_MAX_SPARE=10
 
-ENTRYPOINT ["docker-entrypoint.sh"]
-CMD ["apache2-foreground"]
+EXPOSE 9000
+ENTRYPOINT ["/usr/local/bin/moodle-fpm-entrypoint.sh"]
