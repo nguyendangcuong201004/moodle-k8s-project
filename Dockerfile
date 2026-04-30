@@ -25,6 +25,13 @@ RUN echo "upload_max_filesize = 100M" >> /usr/local/etc/php/conf.d/uploads.ini
 RUN echo "post_max_size = 100M" >> /usr/local/etc/php/conf.d/uploads.ini
 RUN echo "memory_limit = 256M" >> /usr/local/etc/php/conf.d/memory.ini
 
+RUN { \
+      echo "[www]"; \
+      echo "pm.status_path = /status"; \
+      echo "ping.path = /ping"; \
+      echo "ping.response = pong"; \
+    } > /usr/local/etc/php-fpm.d/zz-status.conf
+
 COPY docker/moodle-fpm-entrypoint.sh /usr/local/bin/moodle-fpm-entrypoint.sh
 RUN chmod +x /usr/local/bin/moodle-fpm-entrypoint.sh
 
