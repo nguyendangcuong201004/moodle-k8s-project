@@ -17,13 +17,23 @@ ENV LC_ALL=vi_VN.UTF-8
 RUN docker-php-ext-configure gd --with-freetype --with-jpeg \
     && docker-php-ext-install -j$(nproc) \
     gd opcache intl zip soap exif pgsql pdo_pgsql sodium \
-    && pecl install redis \
-    && docker-php-ext-enable redis
+    && pecl install redis apcu \
+    && docker-php-ext-enable redis apcu
 
 RUN echo "max_input_vars = 5000" >> /usr/local/etc/php/conf.d/moodle-vars.ini
 RUN echo "upload_max_filesize = 100M" >> /usr/local/etc/php/conf.d/uploads.ini
 RUN echo "post_max_size = 100M" >> /usr/local/etc/php/conf.d/uploads.ini
 RUN echo "memory_limit = 256M" >> /usr/local/etc/php/conf.d/memory.ini
+
+RUN { \
+      echo "apc.enabled=1"; \
+      echo "apc.enable_cli=1"; \
+      echo "apc.shm_size=128M"; \
+      echo "apc.ttl=7200"; \
+      echo "apc.gc_ttl=3600"; \
+      echo "apc.entries_hint=8192"; \
+      echo "apc.serializer=php"; \
+    } > /usr/local/etc/php/conf.d/zz-apcu-tuning.ini
 
 RUN { \
       echo "[www]"; \
