@@ -81,20 +81,34 @@ jobs:
       - name: Deploy to staging
         run: |
           IMAGE_TAG="${{ needs.build-and-push.outputs.image_tag }}"
+          IMAGE="ndcuongdevops/moodle-lms:${IMAGE_TAG}"
           echo "Deploying image tag: $IMAGE_TAG to staging"
 
-          kubectl set image deployment/moodle \
-            moodle=ndcuongdevops/moodle-lms:${IMAGE_TAG}
+          kubectl -n moodle patch deployment/moodle --type='strategic' -p "{
+            \"spec\": {
+              \"template\": {
+                \"spec\": {
+                  \"containers\": [
+                    {\"name\": \"moodle\", \"image\": \"${IMAGE}\"}
+                  ],
+                  \"initContainers\": [
+                    {\"name\": \"copy-moodle-app\", \"image\": \"${IMAGE}\"},
+                    {\"name\": \"write-moodle-config\", \"image\": \"${IMAGE}\"}
+                  ]
+                }
+              }
+            }
+          }"
 
-          kubectl scale deployment/moodle --replicas=1
-          kubectl rollout status deployment/moodle --timeout=300s
+          kubectl -n moodle scale deployment/moodle --replicas=1
+          kubectl -n moodle rollout status deployment/moodle --timeout=300s
 
       - name: Verify deployment
         run: |
           echo "=== Pods ==="
-          kubectl get pods
+          kubectl -n moodle get pods
           echo "=== Service ==="
-          kubectl get svc
+          kubectl -n moodle get svc
           echo ""
           echo "Staging URL: ${{ vars.MOODLE_STAGING_WWWROOT }}"
 
@@ -125,21 +139,35 @@ jobs:
       - name: Deploy to production
         run: |
           IMAGE_TAG="${{ github.event.inputs.image_tag }}"
+          IMAGE="ndcuongdevops/moodle-lms:${IMAGE_TAG}"
           echo "Deploying image tag: $IMAGE_TAG"
 
           # Rolling update - zero downtime
-          kubectl set image deployment/moodle \
-            moodle=ndcuongdevops/moodle-lms:${IMAGE_TAG}
+          kubectl -n moodle patch deployment/moodle --type='strategic' -p "{
+            \"spec\": {
+              \"template\": {
+                \"spec\": {
+                  \"containers\": [
+                    {\"name\": \"moodle\", \"image\": \"${IMAGE}\"}
+                  ],
+                  \"initContainers\": [
+                    {\"name\": \"copy-moodle-app\", \"image\": \"${IMAGE}\"},
+                    {\"name\": \"write-moodle-config\", \"image\": \"${IMAGE}\"}
+                  ]
+                }
+              }
+            }
+          }"
 
           # Wait for rollout
-          kubectl rollout status deployment/moodle --timeout=300s
+          kubectl -n moodle rollout status deployment/moodle --timeout=300s
 
       - name: Verify deployment
         run: |
           echo "=== Pods ==="
-          kubectl get pods
+          kubectl -n moodle get pods
           echo "=== Service ==="
-          kubectl get svc
+          kubectl -n moodle get svc
           echo ""
           echo "Production URL: ${{ vars.MOODLE_WWWROOT }}"
 
@@ -162,5 +190,5 @@ jobs:
       - name: Scale down
         run: |
           echo "Scaling down to save resources..."
-          kubectl scale deployment/moodle --replicas=0
+          kubectl -n moodle scale deployment/moodle --replicas=0
           echo "Scaled to 0 replicas."
