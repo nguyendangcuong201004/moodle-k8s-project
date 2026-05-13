@@ -2,7 +2,7 @@ name: Build, Push & Deploy Moodle
 
 on:
   push:
-    branches: ["main", "develop"]
+    branches: ["develop"]
     tags: ["v*"]
   workflow_dispatch:
     inputs:
@@ -101,7 +101,7 @@ jobs:
           }"
 
           kubectl -n moodle scale deployment/moodle --replicas=1
-          kubectl -n moodle rollout status deployment/moodle --timeout=300s
+          kubectl -n moodle rollout status deployment/moodle --timeout=900s
 
       - name: Verify deployment
         run: |
@@ -159,8 +159,15 @@ jobs:
             }
           }"
 
-          # Wait for rollout
-          kubectl -n moodle rollout status deployment/moodle --timeout=300s
+          # Wait for rollout (production rollout is sequential and can take >5m with 6 replicas).
+          if ! kubectl -n moodle rollout status deployment/moodle --timeout=1200s; then
+            echo "Rollout timed out. Debug info:"
+            kubectl -n moodle get deploy moodle -o wide || true
+            kubectl -n moodle get rs -l app.kubernetes.io/name=moodle -o wide || true
+            kubectl -n moodle get pods -l app.kubernetes.io/name=moodle,role=web -o wide || true
+            kubectl -n moodle get events --sort-by=.lastTimestamp | tail -n 120 || true
+            exit 1
+          fi
 
       - name: Verify deployment
         run: |
