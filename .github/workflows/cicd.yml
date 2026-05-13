@@ -81,10 +81,24 @@ jobs:
       - name: Deploy to staging
         run: |
           IMAGE_TAG="${{ needs.build-and-push.outputs.image_tag }}"
+          IMAGE="ndcuongdevops/moodle-lms:${IMAGE_TAG}"
           echo "Deploying image tag: $IMAGE_TAG to staging"
 
-          kubectl -n moodle set image deployment/moodle \
-            moodle=ndcuongdevops/moodle-lms:${IMAGE_TAG}
+          kubectl -n moodle patch deployment/moodle --type='strategic' -p "{
+            \"spec\": {
+              \"template\": {
+                \"spec\": {
+                  \"containers\": [
+                    {\"name\": \"moodle\", \"image\": \"${IMAGE}\"}
+                  ],
+                  \"initContainers\": [
+                    {\"name\": \"copy-moodle-app\", \"image\": \"${IMAGE}\"},
+                    {\"name\": \"write-moodle-config\", \"image\": \"${IMAGE}\"}
+                  ]
+                }
+              }
+            }
+          }"
 
           kubectl -n moodle scale deployment/moodle --replicas=1
           kubectl -n moodle rollout status deployment/moodle --timeout=300s
@@ -125,11 +139,25 @@ jobs:
       - name: Deploy to production
         run: |
           IMAGE_TAG="${{ github.event.inputs.image_tag }}"
+          IMAGE="ndcuongdevops/moodle-lms:${IMAGE_TAG}"
           echo "Deploying image tag: $IMAGE_TAG"
 
           # Rolling update - zero downtime
-          kubectl -n moodle set image deployment/moodle \
-            moodle=ndcuongdevops/moodle-lms:${IMAGE_TAG}
+          kubectl -n moodle patch deployment/moodle --type='strategic' -p "{
+            \"spec\": {
+              \"template\": {
+                \"spec\": {
+                  \"containers\": [
+                    {\"name\": \"moodle\", \"image\": \"${IMAGE}\"}
+                  ],
+                  \"initContainers\": [
+                    {\"name\": \"copy-moodle-app\", \"image\": \"${IMAGE}\"},
+                    {\"name\": \"write-moodle-config\", \"image\": \"${IMAGE}\"}
+                  ]
+                }
+              }
+            }
+          }"
 
           # Wait for rollout
           kubectl -n moodle rollout status deployment/moodle --timeout=300s
