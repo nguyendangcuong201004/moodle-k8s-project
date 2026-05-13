@@ -83,18 +83,18 @@ jobs:
           IMAGE_TAG="${{ needs.build-and-push.outputs.image_tag }}"
           echo "Deploying image tag: $IMAGE_TAG to staging"
 
-          kubectl set image deployment/moodle \
+          kubectl -n moodle set image deployment/moodle \
             moodle=ndcuongdevops/moodle-lms:${IMAGE_TAG}
 
-          kubectl scale deployment/moodle --replicas=1
-          kubectl rollout status deployment/moodle --timeout=300s
+          kubectl -n moodle scale deployment/moodle --replicas=1
+          kubectl -n moodle rollout status deployment/moodle --timeout=300s
 
       - name: Verify deployment
         run: |
           echo "=== Pods ==="
-          kubectl get pods
+          kubectl -n moodle get pods
           echo "=== Service ==="
-          kubectl get svc
+          kubectl -n moodle get svc
           echo ""
           echo "Staging URL: ${{ vars.MOODLE_STAGING_WWWROOT }}"
 
@@ -128,18 +128,18 @@ jobs:
           echo "Deploying image tag: $IMAGE_TAG"
 
           # Rolling update - zero downtime
-          kubectl set image deployment/moodle \
+          kubectl -n moodle set image deployment/moodle \
             moodle=ndcuongdevops/moodle-lms:${IMAGE_TAG}
 
           # Wait for rollout
-          kubectl rollout status deployment/moodle --timeout=300s
+          kubectl -n moodle rollout status deployment/moodle --timeout=300s
 
       - name: Verify deployment
         run: |
           echo "=== Pods ==="
-          kubectl get pods
+          kubectl -n moodle get pods
           echo "=== Service ==="
-          kubectl get svc
+          kubectl -n moodle get svc
           echo ""
           echo "Production URL: ${{ vars.MOODLE_WWWROOT }}"
 
@@ -162,5 +162,5 @@ jobs:
       - name: Scale down
         run: |
           echo "Scaling down to save resources..."
-          kubectl scale deployment/moodle --replicas=0
+          kubectl -n moodle scale deployment/moodle --replicas=0
           echo "Scaled to 0 replicas."
