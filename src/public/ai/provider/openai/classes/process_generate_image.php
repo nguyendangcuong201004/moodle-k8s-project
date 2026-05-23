@@ -107,10 +107,83 @@ class process_generate_image extends abstract_processor {
 
         return [
             'success' => true,
-            'sourceurl' => $bodyobj->data[0]->url,
-            'revisedprompt' => $bodyobj->data[0]->revised_prompt,
+            'sourceurl' => $this->normalise_image_url($bodyobj->data[0]->url),
+            'revisedprompt' => $bodyobj->data[0]->revised_prompt ?? $this->action->get_configuration('prompttext'),
             'model' => $this->get_model(), // There is no model in the response, use config.
         ];
+    }
+
+    /**
+     * Normalise image URLs returned by OpenAI-compatible providers.
+     *
+     * Some providers return HTML-escaped query strings in JSON responses.
+     *
+     * @param string $url The URL to normalise.
+     * @return string
+     */
+    private function normalise_image_url(string $url): string {
+        return html_entity_decode($url, ENT_QUOTES | ENT_HTML5);
+    }
+
+    /**
+     * Check whether the image URL is served by Pollinations.
+     *
+     * @param string $url The image URL.
+     * @return bool
+     */
+    private function is_pollinations_url(string $url): bool {
+        $host = parse_url($url, PHP_URL_HOST);
+        if ($host === false || $host === null) {
+            return false;
+        }
+
+        $host = strtolower($host);
+        return $host === 'gen.pollinations.ai' || str_ends_with($host, '.pollinations.ai');
+    }
+
+    /**
+     * Get the filename to use when storing the downloaded image.
+     *
+     * @param string $url The image URL.
+     * @return string
+     */
+    private function get_image_filename(string $url): string {
+        $path = parse_url($url, PHP_URL_PATH);
+        $filename = $path ? basename($path) : '';
+        $filename = clean_param(rawurldecode($filename), PARAM_FILE);
+
+        if ($filename === '' || pathinfo($filename, PATHINFO_EXTENSION) === '') {
+            return 'generated-image.png';
+        }
+
+        return $filename;
+    }
+
+    /**
+     * Get Guzzle options for downloading the generated image.
+     *
+     * Pollinations protects generated image URLs with the same Bearer token as the
+     * OpenAI-compatible generation endpoint, so the download request needs auth too.
+     *
+     * @param string $url The image URL.
+     * @param string $tempdst The temporary destination path.
+     * @return array
+     */
+    private function get_image_download_options(string $url, string $tempdst): array {
+        global $CFG;
+
+        $options = [
+            'sink' => $tempdst,
+            'timeout' => $CFG->repositorygetfiletimeout,
+        ];
+
+        if ($this->is_pollinations_url($url) && !empty($this->provider->config['apikey'])) {
+            $options['headers'] = [
+                'Authorization' => "Bearer {$this->provider->config['apikey']}",
+            ];
+        }
+
+        return $options;
     }
 
     /**
@@ -129,17 +202,14 @@ class process_generate_image extends abstract_processor {
 
         require_once("{$CFG->libdir}/filelib.php");
 
-        $parsedurl = parse_url($url, PHP_URL_PATH); // Parse the URL to get the path.
-        $filename = basename($parsedurl); // Get the basename of the path.
+        $url = $this->normalise_image_url($url);
+        $filename = $this->get_image_filename($url);
 
         $client = \core\di::get(http_client::class);
 
         // Download the image and add the watermark.
         $tempdst = make_request_directory() . DIRECTORY_SEPARATOR . $filename;
-        $client->get($url, [
-            'sink' => $tempdst,
-            'timeout' => $CFG->repositorygetfiletimeout,
-        ]);
+        $client->get($url, $this->get_image_download_options($url, $tempdst));
 
         $image = new ai_image($tempdst);
         $image->add_watermark()->save();

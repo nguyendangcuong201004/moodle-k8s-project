@@ -220,6 +220,29 @@ final class process_generate_image_test extends \advanced_testcase {
     }
 
     /**
+     * Test Pollinations image URLs are normalised and downloaded with auth.
+     */
+    public function test_pollinations_image_download_options(): void {
+        $processor = new process_generate_image($this->provider, $this->action);
+
+        $url = 'https://gen.pollinations.ai/image/a%20cat?model=flux&amp;width=1024';
+
+        $normalisemethod = new \ReflectionMethod($processor, 'normalise_image_url');
+        $normalisedurl = $normalisemethod->invoke($processor, $url);
+        $this->assertEquals('https://gen.pollinations.ai/image/a%20cat?model=flux&width=1024', $normalisedurl);
+
+        $filenamemethod = new \ReflectionMethod($processor, 'get_image_filename');
+        $this->assertEquals('generated-image.png', $filenamemethod->invoke($processor, $normalisedurl));
+
+        $optionsmethod = new \ReflectionMethod($processor, 'get_image_download_options');
+        $options = $optionsmethod->invoke($processor, $normalisedurl, '/tmp/generated-image.png');
+
+        $this->assertEquals('/tmp/generated-image.png', $options['sink']);
+        $this->assertArrayHasKey('headers', $options);
+        $this->assertEquals('Bearer 123', $options['headers']['Authorization']);
+    }
+
+    /**
      * Test query_ai_api for a successful call.
      */
     public function test_query_ai_api_success(): void {
