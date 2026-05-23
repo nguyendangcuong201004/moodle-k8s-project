@@ -44,7 +44,6 @@ class process_generate_text extends abstract_processor {
         // Create the request object.
         $requestobj = new \stdClass();
         $requestobj->model = $this->get_model();
-        $requestobj->user = $userid;
 
         // If there is a system string available, use it.
         $systeminstruction = $this->get_system_instruction();
